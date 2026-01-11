@@ -1,0 +1,173 @@
+const pool = require("../config/db");
+const { hashPassword } = require("../utils/password");
+const validateFarmerRegistration = require("../validations/farmer.validation");
+
+async function registerFarmer(req, res) {
+  const client = await pool.connect();
+
+  try {
+    // Validating input
+    const error = validateFarmerRegistration(req.body);
+    if (error) {
+      return res.status(400).json({ message: error });
+    }
+
+    const {
+      username,
+      password,
+      firstName,
+      lastName,
+      farmSize,
+      cropType,
+      livestockType,
+    } = req.body;
+
+    //Start
+    await client.query("BEGIN");
+
+    // Hashing password
+    const passwordHash = await hashPassword(password);
+
+    // Insert into users table
+    const userResult = await client.query(
+      `INSERT INTO users (username, password_hash, role)
+       VALUES ($1, $2, 'farmer')
+       RETURNING id`,
+      [username, passwordHash]
+    );
+
+    const userId = userResult.rows[0].id;
+
+    //Insert into farmers table
+    await client.query(
+      `INSERT INTO farmers (
+        user_id, first_name, last_name, farm_size, crop_type, livestock_type
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        userId,
+        firstName,
+        lastName,
+        farmSize,
+        cropType || null,
+        livestockType || null,
+      ]
+    );
+
+    //Commit transaction
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      message: "Farmer registered successfully. Awaiting certification.",
+    });
+  } catch (error) {
+    // If anything fails it rollsback
+    await client.query("ROLLBACK");
+
+    // Username already exists
+    if (error.code === "23505") {
+      return res.status(409).json({ message: "Username already exists" });
+    }
+
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  } finally {
+    client.release();
+  }
+}
+
+async function getAllFarmers(req, res) {
+  try {
+    const result = await pool.query(`
+      SELECT
+        f.id,
+        f.first_name,
+        f.last_name,
+        f.farm_size,
+        f.crop_type,
+        f.livestock_type,
+        f.status,
+        f.created_at,
+        u.username
+      FROM farmers f
+      JOIN users u ON f.user_id = u.id
+      ORDER BY f.created_at DESC
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+async function updateFarmerStatus(req, res) {
+  try {
+    const farmerId = req.params.id;
+    const { status } = req.body;
+
+    // Validate status
+    if (!["certified", "declined"].includes(status)) {
+      return res.status(400).json({
+        message: "Status must be either 'certified' or 'declined'",
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE farmers
+       SET status = $1
+       WHERE id = $2
+       RETURNING id, first_name, last_name, status`,
+      [status, farmerId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "Farmer not found" });
+    }
+
+    res.json({
+      message: "Farmer status updated successfully",
+      farmer: result.rows[0],
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+async function getMyStatus(req, res) {
+  try {
+    const userId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT
+        first_name,
+        last_name,
+        farm_size,
+        crop_type,
+        livestock_type,
+        status
+      FROM farmers
+      WHERE user_id = $1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: "Farmer profile not found",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
+module.exports = {
+  registerFarmer,
+  getAllFarmers,
+  updateFarmerStatus,
+  getMyStatus,
+};
