@@ -151,6 +151,7 @@ async function getFarmerById(req, res) {
 
     const result = await pool.query(
       `SELECT
+        id,
         first_name,
         last_name,
         farm_size,
@@ -158,6 +159,7 @@ async function getFarmerById(req, res) {
         livestock_type,
         status,
         revoke_reason,
+        revoked_at,
         created_at
       FROM farmers
       WHERE id = $1`,
@@ -170,6 +172,7 @@ async function getFarmerById(req, res) {
 
     res.json(result.rows[0]);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Server error" });
   }
 }
