@@ -22,7 +22,7 @@ async function registerFarmer(req, res) {
       livestockType,
     } = req.body;
 
-    //Start
+    // Start transaction
     await client.query("BEGIN");
 
     // Hashing password
@@ -38,7 +38,7 @@ async function registerFarmer(req, res) {
 
     const userId = userResult.rows[0].id;
 
-    //Insert into farmers table
+    // Insert into farmers table
     await client.query(
       `INSERT INTO farmers (
         user_id, first_name, last_name, farm_size, crop_type, livestock_type
@@ -54,14 +54,14 @@ async function registerFarmer(req, res) {
       ]
     );
 
-    //Commit transaction
+    // Commit transaction
     await client.query("COMMIT");
 
     res.status(201).json({
       message: "Farmer registered successfully. Awaiting certification.",
     });
   } catch (error) {
-    // If anything fails it rollsback
+    // Rollback transaction if any error occurs
     await client.query("ROLLBACK");
 
     // Username already exists
@@ -157,6 +157,7 @@ async function getFarmerById(req, res) {
         crop_type,
         livestock_type,
         status,
+        revoke_reason,
         created_at
       FROM farmers
       WHERE id = $1`,
@@ -173,10 +174,71 @@ async function getFarmerById(req, res) {
   }
 }
 
+async function revokeFarmerCertificate(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const farmerId = req.params.id;
+    const { reason } = req.body;
+
+    if (!reason || reason.trim() === "") {
+      return res.status(400).json({
+        message: "Revocation reason is required",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      "SELECT status FROM farmers WHERE id = $1",
+      [farmerId]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Farmer not found" });
+    }
+
+    if (result.rows[0].status !== "certified") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        message: "Only certified farmers can be revoked",
+      });
+    }
+
+    await client.query(
+      `
+      UPDATE farmers
+      SET status = 'revoked',
+          revoke_reason = $1,
+          revoked_at = NOW()
+      WHERE id = $2
+      `,
+      [reason, farmerId]
+    );
+
+    await client.query("COMMIT");
+
+    res.json({
+      message: "Farmer certificate revoked successfully",
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("REVOKE ERROR:", error.message);
+
+    res.status(500).json({
+      message: "Server error while revoking certificate",
+    });
+  } finally {
+    client.release();
+  }
+}
+
 module.exports = {
   registerFarmer,
   getAllFarmers,
   updateFarmerStatus,
   getMyStatus,
   getFarmerById,
+  revokeFarmerCertificate,
 };

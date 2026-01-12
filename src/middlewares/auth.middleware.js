@@ -3,7 +3,6 @@ const { JWT_SECRET } = require("../config/jwt");
 
 module.exports = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  console.log("AUTH HEADER:", authHeader.startsWith("Bearer "));
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ message: "No token provided" });
