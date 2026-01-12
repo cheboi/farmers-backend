@@ -102,37 +102,17 @@ async function getAllFarmers(req, res) {
 }
 
 async function updateFarmerStatus(req, res) {
-  try {
-    const farmerId = req.params.id;
-    const { status } = req.body;
+  const { id } = req.params;
+  const { status } = req.body;
 
-    // Validate status
-    if (!["certified", "declined"].includes(status)) {
-      return res.status(400).json({
-        message: "Status must be either 'certified' or 'declined'",
-      });
-    }
-
-    const result = await pool.query(
-      `UPDATE farmers
-       SET status = $1
-       WHERE id = $2
-       RETURNING id, first_name, last_name, status`,
-      [status, farmerId]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ message: "Farmer not found" });
-    }
-
-    res.json({
-      message: "Farmer status updated successfully",
-      farmer: result.rows[0],
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+  const allowed = ["pending", "certified", "declined", "revoked"];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ message: "Invalid status" });
   }
+
+  await pool.query("UPDATE farmers SET status=$1 WHERE id=$2", [status, id]);
+
+  res.json({ message: `Farmer status updated to ${status}` });
 }
 
 async function getMyStatus(req, res) {
@@ -165,9 +145,38 @@ async function getMyStatus(req, res) {
   }
 }
 
+async function getFarmerById(req, res) {
+  try {
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `SELECT
+        first_name,
+        last_name,
+        farm_size,
+        crop_type,
+        livestock_type,
+        status,
+        created_at
+      FROM farmers
+      WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Farmer not found" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+}
+
 module.exports = {
   registerFarmer,
   getAllFarmers,
   updateFarmerStatus,
   getMyStatus,
+  getFarmerById,
 };

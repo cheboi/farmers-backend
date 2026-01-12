@@ -9,12 +9,14 @@ const {
   getAllFarmers,
   updateFarmerStatus,
   getMyStatus,
+  getFarmerById,
 } = require("../controllers/farmer.controller");
 
 router.post("/", registerFarmer);
 
 router.get("/", authenticate, authorizeRole("admin"), getAllFarmers);
 router.get("/me", authenticate, getMyStatus);
+router.get("/:id", authenticate, authorizeRole("admin"), getFarmerById);
 
 router.patch(
   "/:id/status",
