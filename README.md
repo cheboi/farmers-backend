@@ -71,7 +71,7 @@ Administrators are created manually in the database for security reasons.
 
 ---
 
-## Default Farmer Registration Behavior
+## Default Farmer Registration Behaviour
 
 - role: `farmer`
 - status: `pending`
@@ -84,7 +84,7 @@ Administrators are created manually in the database for security reasons.
 - Admin routes require `role = admin`
 - Farmer routes require `role = farmer`
 
-Unauthorized requests return an **access denied** response.
+Unauthorised requests return an **access denied** response.
 
 ---
 
@@ -93,7 +93,7 @@ Unauthorized requests return an **access denied** response.
 ### 1. Clone Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/cheboi/farmers-backend.git
 cd FARMERS-BACKEND
 npm install
 npm install
