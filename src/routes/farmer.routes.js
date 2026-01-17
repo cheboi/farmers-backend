@@ -9,7 +9,9 @@ const {
   revokeFarmerCertificate,
 } = require("../controllers/farmer.controller");
 
-router.post("/", registerFarmer);
+const { registerFarmerLimiter } = require("../middleware/rateLimiters");
+
+router.post("/", registerFarmerLimiter, registerFarmer);
 
 const authenticate = require("../middlewares/auth.middleware");
 const authorizeRole = require("../middlewares/role.middleware");
